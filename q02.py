@@ -23,6 +23,8 @@ class ProgrammerSimulation:
         self.database = threading.Semaphore(db_connections)
         self.compiler = threading.Semaphore(compilers)
         self.threads = []
+
+        # Estatísticas, tem seu próprio lock 🔥
         self.stats = {
             Action.COMPILE: 0,
             Action.REST: 0,
@@ -30,24 +32,28 @@ class ProgrammerSimulation:
         }
 
     def act(self, action: Action) -> None:
-        """executes an action for a random time between 0 and MAX_TIME seconds"""
+        """Simula uma ação (action) por um tempo aleatório (work_time) entre 0 e MAX_TIME"""
         work_time = random.uniform(0, self.MAX_TIME)
         thread_name = threading.current_thread().name
 
         logger.info(f"{thread_name} vai {action} por {work_time:.2f} segundos")
         time.sleep(work_time)
 
+        # Salva a ação
         with self.stats['lock']:
             self.stats[action] += 1
             
         logger.info(f"{thread_name} terminou de {action}")
 
-#    def programmer(self) -> None:
-#        while True:
-#            with compiler:
-#                with database:
-#                    act("compilar")
-#            act("descançar")
+    def programmer(self) -> None:
+        """Faz Programa e depois descança (ninguém é de ferro) (no caso só compila: Precisa de um compilador e banco de dados)"""
+        while True:
+            # Acredito que na verdade, faz sentido o recurso mais raro estar como primeiro (o que não é garantido na minha implementação, mas garantido no enunciado do trabalho),
+            # pois, é melhor ter o compilador, que tem um, primeiro, uma vez que o contrário causa uma thread ficar com o database "preso" sem poder usar
+            with self.compiler:
+                with self.database:
+                    self.act(Action.COMPILE)
+            self.act(Action.REST)
 
 def main():
 #    threads = []
