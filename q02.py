@@ -55,6 +55,33 @@ class ProgrammerSimulation:
                     self.act(Action.COMPILE)
             self.act(Action.REST)
 
+    def run(self) -> None:
+        logger.info(f"Iniciando simulação com {self.NUMBER_OF_PROGRAMMERS} programadores")
+        logger.info(f"Recursos: {self.compiler._value} compilador(es), {self.database._value} conexão(ões) DB")
+
+        # Cria os threads, daemon faz eles pararem quando o processo principal parar
+        for i in range(self.NUMBER_OF_PROGRAMMERS):
+            t = threading.Thread(
+                target=self.programmer, 
+                name=f"Programador-{i + 1}",
+                daemon=True
+            )
+            self.threads.append(t)
+            t.start()
+
+        logger.info("Simulação rodando... (Ctrl+C para parar)")
+        
+        try:
+            for t in self.threads:
+                t.join()
+        except KeyboardInterrupt:
+            logger.info("Parando simulação...")
+            self.print_stats()
+        
+    def print_stats(self) -> None:
+        pass
+
+
 def main():
 #    threads = []
 #    for i in range(NUMBER_OF_PROGRAMMERS):
