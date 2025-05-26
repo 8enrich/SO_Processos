@@ -1,40 +1,52 @@
 import threading
-from time import sleep
-from datetime import datetime
+import time
 import random
+import logging
 
-MAX_TIME = 1
-NUMBER_OF_PROGRAMMERS = 5
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
-def act(action: str) -> None:
-    work_time = random.uniform(0, MAX_TIME)
-    print(f"{threading.current_thread().name} vai {action} por {work_time} segundos")
-    sleep(random.uniform(0, MAX_TIME))
+class ProgrammerSimulation:
+    def __init__(self, max_time: float = 1.0, num_programmers: int = 5, 
+                 db_connections: int = 2, compilers: int = 1):
+        self.MAX_TIME = max_time
+        self.NUMBER_OF_PROGRAMMERS = num_programmers
+        self.database = threading.Semaphore(db_connections)
+        self.compiler = threading.Semaphore(compilers)
+        self.threads = []
+        self.stats = {
+            'compilations': 0,
+            'rests': 0,
+        }
 
-def work() -> None:
-    round = 0
-    start = datetime.now()
-    while True:
-        act("compilar")
-        act("descançar")
-        round += 1
-        if round == 20:
-            elapsed = datetime.now() - start
-            total_seconds = int(elapsed.total_seconds())
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            print(f"{hours:02}:{minutes:02}:{seconds:02}")
-            break
+    def act(self, action: str) -> None:
+        work_time = random.uniform(0, selfMAX_TIME)
+        print(f"{threading.current_thread().name} vai {action} por {work_time} segundos")
+        sleep(random.uniform(0, MAX_TIME))
 
-threads = []
-for i in range(NUMBER_OF_PROGRAMMERS):
-    t = threading.Thread(target=work, name=f"Programador {i + 1}")
-    threads.append(t)
+    def programmer(self) -> None:
+        while True:
+            with compiler:
+                with database:
+                    act("compilar")
+            act("descançar")
 
-for t in threads:
-    t.start()
 
-for t in threads:
-    t.join()
+def main():
+    threads = []
+    for i in range(NUMBER_OF_PROGRAMMERS):
+        t = threading.Thread(target=programmer, name=f"Programador {i + 1}")
+        threads.append(t)
 
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join()
+
+if __name__ == "__main__":
+    main()
