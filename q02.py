@@ -4,7 +4,6 @@ Google collab relacionado:
 """
 import threading as th
 import time
-import random
 import logging
 from enum import Enum, auto
 from typing import Dict, List
@@ -49,24 +48,28 @@ class Result:
 class ProgrammerSimulation:
     def __init__(
         self,
-        max_time: float = 1.0,
+        compile_time: float = 0.1,
+        rest_time: float = 0.01,
         num_programmers: int = 5,
         db_connections: int = 2,
-        compilers: int = 1
+        compilers: int = 1,
+        acquire_db_first: bool = True
     ) -> None:
-        if max_time <= 0:
-            raise ValueError("max_time deve ser positivo")
+        if compile_time <= 0 or rest_time <= 0:
+            raise ValueError("compile_time and rest_time must be positive")
         if num_programmers <= 0:
-            raise ValueError("num_programmers deve ser positivo")
+            raise ValueError("num_programmers must be positive")
         if db_connections <= 0:
-            raise ValueError("db_connections deve ser positivo")
+            raise ValueError("db_connections must be positive")
         if compilers <= 0:
-            raise ValueError("compilers deve ser positivo")
+            raise ValueError("compilers must be positive")
 
-        self.max_time = max_time
+        self.compile_time = compile_time
+        self.rest_time = rest_time
         self.num_programmers = num_programmers
         self.database = th.Semaphore(db_connections)
         self.compiler = th.Semaphore(compilers)
+        self.acquire_db_first = acquire_db_first
         self.threads: List[th.Thread] = []
 
         self.events: List[Event] = []
@@ -79,7 +82,12 @@ class ProgrammerSimulation:
         with self.stats_lock:
             self.events.append(Event(ts, programmer_id, action))
 
-        duration = random.uniform(0, self.max_time)
+        if action == Action.COMPILE:
+            duration = self.compile_time
+        elif action == Action.REST:
+            duration = self.rest_time
+        else:
+            duration = 0
         time.sleep(duration)
 
         # record end of action
@@ -91,15 +99,17 @@ class ProgrammerSimulation:
 
     def programmer(self, pid: int) -> None:
         while self.running.is_set():
-            # record wait start
             self.act(pid, Action.WAIT_START)
-            with self.compiler:
+            if self.acquire_db_first:
                 with self.database:
-                    # record wait end
-                    self.act(pid, Action.WAIT_END)
-                    # perform compile
-                    self.act(pid, Action.COMPILE)
-            # rest
+                    with self.compiler:
+                        self.act(pid, Action.WAIT_END)
+                        self.act(pid, Action.COMPILE)
+            else:
+                with self.compiler:
+                    with self.database:
+                        self.act(pid, Action.WAIT_END)
+                        self.act(pid, Action.COMPILE)
             self.act(pid, Action.REST)
 
     def start(self) -> None:
@@ -123,7 +133,6 @@ class ProgrammerSimulation:
 
     def analyze(self) -> Result:
         total = self.end_time - self.start_time
-        # extract compile intervals
         compiles: List[tuple] = []
         ongoing: Dict[int, float] = {}
         for ev in sorted(self.events, key=lambda e: e.timestamp):
@@ -131,7 +140,6 @@ class ProgrammerSimulation:
                 ongoing[ev.programmer_id] = ev.timestamp
             elif ev.action == Action.COMPILE_END and ev.programmer_id in ongoing:
                 compiles.append((ongoing.pop(ev.programmer_id), ev.timestamp))
-        # merge intervals
         compiles.sort()
         merged = []
         for s, e in compiles:
@@ -143,7 +151,6 @@ class ProgrammerSimulation:
         idle = total - active
         cpu_util = active / total * 100 if total > 0 else 0
 
-        # fairness
         counts: Dict[int, int] = {}
         for ev in self.events:
             if ev.action == Action.COMPILE:
@@ -166,21 +173,25 @@ class ProgrammerSimulation:
         )
 
 def run_experiment(
-    max_time: float,
+    compile_time: float,
+    rest_time: float,
     num_programmers: int,
     db_connections: int,
     compilers: int,
-    duration: float
+    duration: float,
+    acquire_db_first: bool = True
 ) -> Result:
     sim = ProgrammerSimulation(
-        max_time=max_time,
+        compile_time=compile_time,
+        rest_time=rest_time,
         num_programmers=num_programmers,
         db_connections=db_connections,
-        compilers=compilers
+        compilers=compilers,
+        acquire_db_first=acquire_db_first
     )
     return sim.run_for(duration)
 
 if __name__ == "__main__":
-    result = run_experiment(0.05, 5, 2, 1, duration=30)
+    result = run_experiment(0.1, 0.01, 5, 2, 1, duration=30)
     logger.info(f"CPU Utilization: {result.cpu_util:.2f}%")
     logger.info(f"Compilations per programmer: {result.counts}")
