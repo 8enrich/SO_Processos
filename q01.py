@@ -1,6 +1,5 @@
 import statistics
 
-
 def FCFS(processes_burst: list[int], T: int):
     wait_time = 0
     processes_wait_time = []
@@ -42,3 +41,6 @@ def SJF(processes_burst: list[int], T: int):
 print(FCFS([10, 50, 20, 15, 200, 80, 130, 70, 400], T=100))
 print()
 print(SJF([200, 50, 20, 15, 80, 130, 70, 400], T=100))
+
+def RR(proccesses: list[int], ):
+    pass
