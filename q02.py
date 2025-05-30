@@ -2,8 +2,6 @@
 Google collab relacionado:
     https://colab.research.google.com/drive/1y9QjeIOMFkuAX7P3cKeqNM3ByZEWfG3D?usp=sharing
 """
-
-
 import threading as th
 import time
 import random
@@ -93,7 +91,7 @@ class ProgrammerSimulation:
         for t in self.threads:
             t.join()
 
-    def print_analysis(self) -> None:
+    def print_analysis(self):
         total = self.end_time - self.start_time
         # extrai intervalos de compilação
         compiles = []  # list of (start, end)
@@ -134,6 +132,18 @@ class ProgrammerSimulation:
         for th_n, c in counts.items():
             print(f"{th_n}: {c}")
         print(f"Min: {min_c}, Max: {max_c}, Média: {avg_c:.1f}")
+
+        return {
+                "num_programmers": self.num_programmers,
+                "total": total,
+                "active": active,
+                "idle": idle,
+                "cpu_util": cpu_util,
+                "counts": counts,
+                "min_c": min_c,
+                "max_c": max_c,
+                "avg_c": avg_c,
+                }
 
 if __name__ == "__main__":
     sim = ProgrammerSimulation(max_time=0.05, num_programmers=5, db_connections=2, compilers=1)
