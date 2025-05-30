@@ -55,7 +55,7 @@ class ProgrammerSimulation:
         compilers: int = 1,
         acquire_db_first: bool = True
     ) -> None:
-        if compile_time <= 0 or rest_time <= 0:
+        if compile_time < 0 or rest_time < 0:
             raise ValueError("compile_time and rest_time must be positive")
         if num_programmers <= 0:
             raise ValueError("num_programmers must be positive")
