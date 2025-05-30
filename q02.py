@@ -124,14 +124,14 @@ class ProgrammerSimulation:
         avg_c = sum(counts.values()) / len(counts)
 
         # impressão dos resultados
-        print(f"Simulação: {self.num_programmers} threads, duração {total:.2f}s")
-        print(f"Tempo ativo (compilando): {active:.2f}s")
-        print(f"Tempo ocioso: {idle:.2f}s")
-        print(f"Utilização da CPU: {cpu_util:.1f}%")
-        print("--- Fairness por thread (número de compilações) ---")
-        for th_n, c in counts.items():
-            print(f"{th_n}: {c}")
-        print(f"Min: {min_c}, Max: {max_c}, Média: {avg_c:.1f}")
+        # print(f"Simulação: {self.num_programmers} threads, duração {total:.2f}s")
+        # print(f"Tempo ativo (compilando): {active:.2f}s")
+        # print(f"Tempo ocioso: {idle:.2f}s")
+        # print(f"Utilização da CPU: {cpu_util:.1f}%")
+        # print("--- Fairness por thread (número de compilações) ---")
+        # for th_n, c in counts.items():
+            # print(f"{th_n}: {c}")
+        # print(f"Min: {min_c}, Max: {max_c}, Média: {avg_c:.1f}")
 
         return {
                 "num_programmers": self.num_programmers,
