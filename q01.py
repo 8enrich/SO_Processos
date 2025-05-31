@@ -2,9 +2,9 @@ from random import randint
 import matplotlib.pyplot as plt
 import statistics
 
-TIME = 750
+TIME = 300
 NUMBER_OF_PROCESSES = 20
-BURST_INTERVAL = [700, 800]
+BURST_INTERVAL = [50, 800]
 
 def main():
 
