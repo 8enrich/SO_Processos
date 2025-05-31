@@ -1,9 +1,14 @@
+"""
+Google collab relacionado:
+    https://colab.research.google.com/drive/1y9QjeIOMFkuAX7P3cKeqNM3ByZEWfG3D?usp=sharing
+"""
 import threading as th
 import time
-import random
 import logging
+import random
 from enum import Enum, auto
 from typing import Dict, List
+from dataclasses import dataclass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,126 +17,186 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 class Action(Enum):
+    WAIT_START = auto()
+    WAIT_END = auto()
     COMPILE = auto()
+    COMPILE_END = auto()
     REST = auto()
+    REST_END = auto()
 
+@dataclass
+class Event:
+    timestamp: float
+    programmer_id: int
+    action: Action
+
+class Result:
+    def __init__(
+        self, num_programmers, total, active,
+        idle, cpu_util, counts, min_c, max_c, avg_c
+    ):
+        self.num_programmers = num_programmers
+        self.total = total
+        self.active = active
+        self.idle = idle
+        self.cpu_util = cpu_util
+        self.counts = counts
+        self.min_c = min_c
+        self.max_c = max_c
+        self.avg_c = avg_c
 
 class ProgrammerSimulation:
-    def __init__(self, max_time: float = 1.0, num_programmers: int = 5, 
-                 db_connections: int = 2, compilers: int = 1) -> None:
-
-        if max_time <= 0:
-            raise ValueError("max_time deve ser positivo")
+    def __init__(
+        self,
+        compile_time: float = 0.1,
+        rest_time: float = 0.01,
+        num_programmers: int = 5,
+        db_connections: int = 2,
+        compilers: int = 1,
+        acquire_db_first: bool = True,
+        random_sleep: bool = False
+    ) -> None:
+        if compile_time < 0 or rest_time < 0:
+            raise ValueError("compile_time and rest_time must be positive")
         if num_programmers <= 0:
-            raise ValueError("num_programmers deve ser positivo") 
+            raise ValueError("num_programmers must be positive")
         if db_connections <= 0:
-            raise ValueError("db_connections deve ser positivo")
+            raise ValueError("db_connections must be positive")
         if compilers <= 0:
-            raise ValueError("compilers deve ser positivo")
+            raise ValueError("compilers must be positive")
 
-        self.max_time: float = max_time
-        self.num_programmers: int = num_programmers
-        self.database: th.Semaphore = th.Semaphore(db_connections)
-        self.compiler: th.Semaphore = th.Semaphore(compilers)
+        self.compile_time = compile_time
+        self.rest_time = rest_time
+        self.num_programmers = num_programmers
+        self.database = th.Semaphore(db_connections)
+        self.compiler = th.Semaphore(compilers)
+        self.acquire_db_first = acquire_db_first
+        self.random_sleep = random_sleep
         self.threads: List[th.Thread] = []
 
-        # Estatísticas
-        self.stats_lock: th.Lock = th.Lock()
-        self.stats: Dict[Action, int] = {
-            Action.COMPILE: 0,
-            Action.REST: 0,
-        }
-
-        # Event para poder parar
-        self.running: th.Event = th.Event()
+        self.events: List[Event] = []
+        self.stats_lock = th.Lock()
+        self.running = th.Event()
         self.running.set()
 
-    def __enter__(self) -> "ProgrammerSimulation":
-        """Entrada no ContextManager"""
-        logger.info("Iniciando Simulação")
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, *_) -> bool:
-        """Saída do ContextManager"""
-        logger.info("Finalizando Simulação")
-        self.stop()
-        self.print_stats()
-
-        if exc_type is KeyboardInterrupt:
-            logger.info("Interrupção de Teclado")
-            return True
-        
-        return False
-
-    def act(self, action: Action) -> None:
-        """Simula uma ação (action) por um tempo aleatório (work_time) entre 0 e max_time"""
-        work_time: float = random.uniform(0, self.max_time)
-        thread_name: str = th.current_thread().name
-
-        logger.info(f"{thread_name} vai {action.name} por {work_time:.2f} segundos")
-        time.sleep(work_time)
-
-        # Salva a ação
+    def act(self, programmer_id: int, action: Action) -> None:
+        ts = time.time()
         with self.stats_lock:
-            self.stats[action] += 1
-            
-        logger.info(f"{thread_name} terminou de {action.name}")
+            self.events.append(Event(ts, programmer_id, action))
 
+        if action == Action.COMPILE:
+            duration = random.uniform(0.01, self.compile_time) if self.random_sleep else self.compile_time
+        elif action == Action.REST:
+            duration = random.uniform(0.01, self.rest_time) if self.random_sleep else self.rest_time
+        else:
+            duration = 0
+        time.sleep(duration)
 
-    def programmer(self) -> None:
-        """Faz Programa e depois descança (ninguém é de ferro) (no caso só compila: Precisa de um compilador e banco de dados)"""
+        # record end of action
+        end_action = Action[f"{action.name}_END"] if action.name in ['COMPILE', 'REST'] else None
+        if end_action:
+            ts_end = time.time()
+            with self.stats_lock:
+                self.events.append(Event(ts_end, programmer_id, end_action))
+
+    def programmer(self, pid: int) -> None:
         while self.running.is_set():
-            # Acredito que na verdade, faz sentido o recurso mais raro estar como primeiro (o que não é garantido na minha implementação, mas garantido no enunciado do trabalho),
-            # pois, é melhor ter o compilador, que tem um, primeiro, uma vez que o contrário causa uma thread ficar com o database "preso" sem poder usar
-            with self.compiler:
+            self.act(pid, Action.WAIT_START)
+            if self.acquire_db_first:
                 with self.database:
-                    self.act(Action.COMPILE)
-
-            self.act(Action.REST)
-
+                    with self.compiler:
+                        self.act(pid, Action.WAIT_END)
+                        self.act(pid, Action.COMPILE)
+            else:
+                with self.compiler:
+                    with self.database:
+                        self.act(pid, Action.WAIT_END)
+                        self.act(pid, Action.COMPILE)
+            self.act(pid, Action.REST)
 
     def start(self) -> None:
-        """Inicia as threads da simulação"""
-        logger.info(f"Iniciando simulação com {self.num_programmers} programadores")
-        logger.info(f"Recursos: {self.compiler._value} compilador(es), {self.database._value} conexão(ões) DB")
-
-        # Cria os threads, daemon faz eles pararem quando o processo principal parar
         for i in range(self.num_programmers):
-            t: th.Thread = th.Thread(
-                target=self.programmer, 
-                name=f"Programador-{i + 1}",
-                daemon=True
-            )
+            t = th.Thread(target=self.programmer, args=(i+1,), name=f"P-{i+1}")
             self.threads.append(t)
             t.start()
 
-        logger.info("Todas as threads iniciadas")
-
     def stop(self) -> None:
-        """Para as threads da simulação"""
         self.running.clear()
         for t in self.threads:
             t.join()
-        
-    def print_stats(self) -> None:
-        with self.stats_lock:
-            logger.info("=== ESTATÍSTICAS ===")
-            logger.info(f"Compilações: {self.stats[Action.COMPILE]}")
-            logger.info(f"Períodos de descanso: {self.stats[Action.REST]}")
 
+    def run_for(self, duration: float) -> Result:
+        self.start_time = time.time()
+        self.start()
+        time.sleep(duration)
+        self.stop()
+        self.end_time = time.time()
+        return self.analyze()
 
-def main():
-    with ProgrammerSimulation(
-        max_time=1.0,
-        num_programmers=5,
-        db_connections=2,
-        compilers=1
-        ):
-            time.sleep(20)
+    def analyze(self) -> Result:
+        total = self.end_time - self.start_time
+        compiles: List[tuple] = []
+        ongoing: Dict[int, float] = {}
+        for ev in sorted(self.events, key=lambda e: e.timestamp):
+            if ev.action == Action.COMPILE:
+                ongoing[ev.programmer_id] = ev.timestamp
+            elif ev.action == Action.COMPILE_END and ev.programmer_id in ongoing:
+                compiles.append((ongoing.pop(ev.programmer_id), ev.timestamp))
+        compiles.sort()
+        merged = []
+        for s, e in compiles:
+            if not merged or s > merged[-1][1]:
+                merged.append([s, e])
+            else:
+                merged[-1][1] = max(merged[-1][1], e)
+        active = sum(e - s for s, e in merged)
+        idle = total - active
+        cpu_util = active / total * 100 if total > 0 else 0
 
+        counts: Dict[int, int] = {}
+        for ev in self.events:
+            if ev.action == Action.COMPILE:
+                counts.setdefault(ev.programmer_id, 0)
+                counts[ev.programmer_id] += 1
+        min_c = min(counts.values())
+        max_c = max(counts.values())
+        avg_c = sum(counts.values()) / len(counts)
+
+        return Result(
+            self.num_programmers,
+            total,
+            active,
+            idle,
+            cpu_util,
+            counts,
+            min_c,
+            max_c,
+            avg_c,
+        )
+
+def run_experiment(
+    compile_time: float,
+    rest_time: float,
+    num_programmers: int,
+    db_connections: int,
+    compilers: int,
+    duration: float,
+    acquire_db_first: bool = True,
+    random_sleep: bool = False
+) -> Result:
+    sim = ProgrammerSimulation(
+        compile_time=compile_time,
+        rest_time=rest_time,
+        num_programmers=num_programmers,
+        db_connections=db_connections,
+        compilers=compilers,
+        acquire_db_first=acquire_db_first,
+        random_sleep=random_sleep
+    )
+    return sim.run_for(duration)
 
 if __name__ == "__main__":
-    main()
+    result = run_experiment(0.1, 0.01, 5, 2, 1, duration=30, random_sleep=True)
+    logger.info(f"CPU Utilization: {result.cpu_util:.2f}%")
+    logger.info(f"Compilations per programmer: {result.counts}")
