@@ -2,99 +2,118 @@ import threading
 import time
 import random
 import matplotlib.pyplot as plt
+from collections import deque
 
 
 class RestRoom:
-    """
-    Sala de repouso compartilhada entre cães e gatos.
-    Cães e gatos não podem estar juntos ao mesmo tempo.
-    """
     def __init__(self):
         self.lock = threading.Lock()
-        self.num_dogs = 0
-        self.num_cats = 0
+        self.state = "empty" 
+        self.counts = {"dog": 0, "cat": 0}
         self.history = []
 
-    def enter_dog(self, dog_id):
-        while True:
-            with self.lock:
-                if self.num_cats == 0:
-                    self.num_dogs += 1
-                    self._log_state()
-                    return
-            time.sleep(random.uniform(0.01, 0.05))
-
-    def leave_dog(self, dog_id):
-        with self.lock:
-            self.num_dogs -= 1
-            self._log_state()
-
-    def enter_cat(self, cat_id):
-        while True:
-            with self.lock:
-                if self.num_dogs == 0:
-                    self.num_cats += 1
-                    self._log_state()
-                    return
-            time.sleep(random.uniform(0.01, 0.05))
-
-    def leave_cat(self, cat_id):
-        with self.lock:
-            self.num_cats -= 1
-            self._log_state()
+    def _can_enter(self, animal_type):
+        return self.state == "empty" or self.state == f"{animal_type}s"
 
     def _log_state(self):
         timestamp = time.time()
-        self.history.append((timestamp, self.num_dogs, self.num_cats))
+        self.history.append((timestamp, self.counts["dog"], self.counts["cat"]))
+
+    def _enter(self, animal_type):
+        self.counts[animal_type] += 1
+        self.state = f"{animal_type}s"
+        self._log_state()
+
+    def _leave(self, animal_type):
+        self.counts[animal_type] -= 1
+        if self.counts[animal_type] == 0:
+            self.state = "empty"
+        self._log_state()
+
+    def enter(self, animal_type, animal_id):
+        while True:
+            with self.lock:
+                if self._can_enter(animal_type):
+                    self._enter(animal_type)
+                    return
+            time.sleep(random.uniform(0.01, 0.05))
+
+    def leave(self, animal_type, animal_id):
+        with self.lock:
+            self._leave(animal_type)
 
 
 def simulate_animal(rest_room, animal_type, animal_id):
-    if animal_type == "dog":
-        rest_room.enter_dog(animal_id)
-        time.sleep(random.uniform(0.05, 0.2))
-        rest_room.leave_dog(animal_id)
-    elif animal_type == "cat":
-        rest_room.enter_cat(animal_id)
-        time.sleep(random.uniform(0.05, 0.2))
-        rest_room.leave_cat(animal_id)
+    rest_room.enter(animal_type, animal_id)
+    time.sleep(random.uniform(0.05, 0.2))
+    rest_room.leave(animal_type, animal_id)
 
 
-def run_interleaved_simulation(group_sizes, first_group='dog'):
-    """
-    Executa a simulação intercalando grupos de cães e gatos.
-    Exemplo de group_sizes: [5, 8, 3, 7] significa 5 cães, depois 8 gatos, depois 3 cães, etc.
-    """
+def generate_random_groups(num_groups=10, min_size=3, max_size=8):
+    return [(random.choice(['dog', 'cat']), random.randint(min_size, max_size)) for _ in range(num_groups)]
+
+
+def interleave_groups(groups):
+    dogs = deque([group for group in groups if group[0] == 'dog'])
+    cats = deque([group for group in groups if group[0] == 'cat'])
+    interleaved = []
+
+    last_type = None
+    while dogs or cats:
+        if last_type == 'dog':
+            if cats:
+                interleaved.append(cats.popleft())
+                last_type = 'cat'
+            elif dogs:
+                interleaved.append(dogs.popleft())
+        elif last_type == 'cat':
+            if dogs:
+                interleaved.append(dogs.popleft())
+                last_type = 'dog'
+            elif cats:
+                interleaved.append(cats.popleft())
+        else:
+            if len(dogs) >= len(cats):
+                interleaved.append(dogs.popleft())
+                last_type = 'dog'
+            else:
+                interleaved.append(cats.popleft())
+                last_type = 'cat'
+
+    return interleaved
+
+
+def run_simulation(groups):
     rest_room = RestRoom()
-    history = []
-    current_group = first_group
+    full_history = []
 
-    for group_size in group_sizes:
-        threads = []
-        for i in range(group_size):
-            animal_id = f"{current_group[0]}{i}"
-            t = threading.Thread(target=simulate_animal, args=(rest_room, current_group, animal_id))
-            threads.append(t)
+    for animal_type, group_size in groups:
+        threads = [
+            threading.Thread(
+                target=simulate_animal,
+                args=(rest_room, animal_type, f"{animal_type[0]}{i}")
+            )
+            for i in range(group_size)
+        ]
 
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
 
-        # Adiciona apenas os novos eventos ao histórico
-        history.extend(rest_room.history[len(history):])
-        current_group = 'cat' if current_group == 'dog' else 'dog'
+        full_history.extend(rest_room.history[len(full_history):])
 
-    return history
+    return full_history
 
 
-def plot_single_simulation(history, title="Simulação com Intercalação de Grupos", filename="grafico_final.png"):
+def plot_history(history, title="Simulação - Protocolo Veterinário"):
     times = [event[0] - history[0][0] for event in history]
-    dogs = [event[1] for event in history]
-    cats = [event[2] for event in history]
+    dog_counts = [event[1] for event in history]
+    cat_counts = [event[2] for event in history]
 
     plt.figure(figsize=(14, 7))
-    plt.plot(times, dogs, label='Cães', linestyle='-', marker='o')
-    plt.plot(times, cats, label='Gatos', linestyle='--', marker='x')
+    plt.plot(times, dog_counts, label='Cães', linestyle='-', marker='o')
+    plt.plot(times, cat_counts, label='Gatos', linestyle='--', marker='x')
 
     plt.xlabel('Tempo (s)')
     plt.ylabel('Quantidade na sala')
@@ -106,10 +125,14 @@ def plot_single_simulation(history, title="Simulação com Intercalação de Gru
 
 
 def main():
-    # Alternância entre grupos: cães → gatos → cães → gatos...
-    group_sizes = [5, 7, 4, 8, 3, 6]  # número de animais por grupo
-    history = run_interleaved_simulation(group_sizes, first_group='dog')
-    plot_single_simulation(history)
+    random_groups = generate_random_groups()
+    print("Grupos gerados:", random_groups)
+
+    interleaved = interleave_groups(random_groups)
+    print("Grupos intercalados:", interleaved)
+
+    history = run_simulation(interleaved)
+    plot_history(history)
 
 
 if __name__ == "__main__":
