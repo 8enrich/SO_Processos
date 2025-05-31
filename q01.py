@@ -12,12 +12,12 @@ def main():
 
     fcfs_data = FCFS(processes_burst, T=TIME)
     sjf_data = SJF(processes_burst, T=TIME)
-    rr_4_data = RR(processes_burst, 4, T=TIME)
-    rr_6_data = RR(processes_burst, 6, T=TIME)
-    rr_8_data = RR(processes_burst, 8, T=TIME)
     rr_150_data = RR(processes_burst, 150, T=TIME)
+    rr_300_data = RR(processes_burst, 300, T=TIME)
+    rr_600_data = RR(processes_burst, 600, T=TIME)
+    rr_800_data = RR(processes_burst, 800, T=TIME)
 
-    algorithms = [fcfs_data, sjf_data, rr_4_data, rr_6_data, rr_8_data, rr_150_data]
+    algorithms = [fcfs_data, sjf_data, rr_150_data, rr_300_data, rr_600_data, rr_800_data]
     names = [data["Algorithm"] for data in algorithms]
 
     mean_wait_times = [data["Mean Wait Time"] for data in algorithms]
@@ -82,6 +82,9 @@ def RR(processes_burst: list[int], quantum: int, T: int, print_simulation=False)
     while queue:
         i = queue.pop(0)
         
+        for j in queue:
+            wait_times[j] += 1
+
         if start_times[i] is None:
             start_times[i] = time
             steps.append(f"Processo {i+1} começou a executar em {time} ms")
