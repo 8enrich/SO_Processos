@@ -18,6 +18,12 @@ cd SO_Processos
 python3 -m venv venv
 ```
 
+- Entre na venv:
+
+```bash
+source venv/bin/activate
+```
+
 - Rode o requirements.txt:
 
 ```bash
