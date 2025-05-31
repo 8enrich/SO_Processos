@@ -26,10 +26,8 @@ def main():
     std_end_times = [data["Std +/- End Time"] for data in algorithms]
     throughputs = [data["Throughput"] for data in algorithms]
 
-    plot_metric(f"Tempo Médio de Espera com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_wait_times, names)
-    plot_metric(f"Desvio Padrão do Tempo de Espera com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Desvio (ms)", std_wait_times, names)
-    plot_metric(f"Tempo Médio de Retorno com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_end_times, names)
-    plot_metric(f"Desvio Padrão do Tempo de Retorno com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Desvio (ms)", std_end_times, names)
+    plot_metric(f"Tempo Médio de Espera com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_wait_times, names, stds=std_wait_times)
+    plot_metric(f"Tempo Médio de Retorno com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_end_times, names, stds=std_end_times)
     plot_metric(f"Vazão (Throughput) T = {TIME}ms com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Processos Completados", throughputs, names)
 
 def FCFS(processes_burst: list[int], T: int):
@@ -129,16 +127,24 @@ def generate_processes(n, start, end):
         raise Exception("O começo não pode ser maior que o final")
     return [randint(start, end) for _ in range(n)]
 
-def plot_metric(title, ylabel, values, names, show_plot=False):
+def plot_metric(title, ylabel, values, names, stds=None, show_plot=False):
     plt.figure(figsize=(8, 5))
-    plt.bar(names, values, color=['blue', 'green', 'orange'])
+    
+    bar_colors = ['blue', 'green', 'orange', 'red', 'purple', 'gray']  # ajuste conforme necessário
+    yerr = stds if stds else None
+
+    plt.bar(names, values, yerr=yerr, capsize=5, color=bar_colors[:len(names)])
+    
     plt.title(title)
     plt.ylabel(ylabel)
     plt.xlabel("Algoritmo")
     plt.grid(axis='y', linestyle='--', alpha=0.7)
+
     if show_plot:
         plt.show()
+
     plt.savefig(title.replace(" ", ""))
+    plt.close()
 
 if __name__ == "__main__":
     main()
