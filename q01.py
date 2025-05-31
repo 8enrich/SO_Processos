@@ -2,9 +2,9 @@ from random import randint
 import matplotlib.pyplot as plt
 import statistics
 
-TIME = 750
+TIME = 300
 NUMBER_OF_PROCESSES = 20
-BURST_INTERVAL = [700, 800]
+BURST_INTERVAL = [50, 800]
 
 def main():
 
@@ -12,12 +12,12 @@ def main():
 
     fcfs_data = FCFS(processes_burst, T=TIME)
     sjf_data = SJF(processes_burst, T=TIME)
-    rr_4_data = RR(processes_burst, 4, T=TIME)
-    rr_6_data = RR(processes_burst, 6, T=TIME)
-    rr_8_data = RR(processes_burst, 8, T=TIME)
     rr_150_data = RR(processes_burst, 150, T=TIME)
+    rr_300_data = RR(processes_burst, 300, T=TIME)
+    rr_600_data = RR(processes_burst, 600, T=TIME)
+    rr_800_data = RR(processes_burst, 800, T=TIME)
 
-    algorithms = [fcfs_data, sjf_data, rr_4_data, rr_6_data, rr_8_data, rr_150_data]
+    algorithms = [fcfs_data, sjf_data, rr_150_data, rr_300_data, rr_600_data, rr_800_data]
     names = [data["Algorithm"] for data in algorithms]
 
     mean_wait_times = [data["Mean Wait Time"] for data in algorithms]
@@ -26,10 +26,8 @@ def main():
     std_end_times = [data["Std +/- End Time"] for data in algorithms]
     throughputs = [data["Throughput"] for data in algorithms]
 
-    plot_metric(f"Tempo Médio de Espera com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_wait_times, names)
-    plot_metric(f"Desvio Padrão do Tempo de Espera com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Desvio (ms)", std_wait_times, names)
-    plot_metric(f"Tempo Médio de Retorno com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_end_times, names)
-    plot_metric(f"Desvio Padrão do Tempo de Retorno com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Desvio (ms)", std_end_times, names)
+    plot_metric(f"Tempo Médio de Espera com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_wait_times, names, stds=std_wait_times)
+    plot_metric(f"Tempo Médio de Retorno com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Tempo (ms)", mean_end_times, names, stds=std_end_times)
     plot_metric(f"Vazão (Throughput) T = {TIME}ms com {NUMBER_OF_PROCESSES} processos e burst_time de {BURST_INTERVAL[0]} a {BURST_INTERVAL[1]}", "Processos Completados", throughputs, names)
 
 def FCFS(processes_burst: list[int], T: int):
@@ -82,6 +80,9 @@ def RR(processes_burst: list[int], quantum: int, T: int, print_simulation=False)
     while queue:
         i = queue.pop(0)
         
+        for j in queue:
+            wait_times[j] += 1
+
         if start_times[i] is None:
             start_times[i] = time
             steps.append(f"Processo {i+1} começou a executar em {time} ms")
@@ -126,16 +127,24 @@ def generate_processes(n, start, end):
         raise Exception("O começo não pode ser maior que o final")
     return [randint(start, end) for _ in range(n)]
 
-def plot_metric(title, ylabel, values, names, show_plot=False):
+def plot_metric(title, ylabel, values, names, stds=None, show_plot=False):
     plt.figure(figsize=(8, 5))
-    plt.bar(names, values, color=['blue', 'green', 'orange'])
+    
+    bar_colors = ['blue', 'green', 'orange', 'red', 'purple', 'gray']  # ajuste conforme necessário
+    yerr = stds if stds else None
+
+    plt.bar(names, values, yerr=yerr, capsize=5, color=bar_colors[:len(names)])
+    
     plt.title(title)
     plt.ylabel(ylabel)
     plt.xlabel("Algoritmo")
     plt.grid(axis='y', linestyle='--', alpha=0.7)
+
     if show_plot:
         plt.show()
+
     plt.savefig(title.replace(" ", ""))
+    plt.close()
 
 if __name__ == "__main__":
     main()
