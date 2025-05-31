@@ -5,6 +5,7 @@ Google collab relacionado:
 import threading as th
 import time
 import logging
+import random
 from enum import Enum, auto
 from typing import Dict, List
 from dataclasses import dataclass
@@ -53,7 +54,8 @@ class ProgrammerSimulation:
         num_programmers: int = 5,
         db_connections: int = 2,
         compilers: int = 1,
-        acquire_db_first: bool = True
+        acquire_db_first: bool = True,
+        random_sleep: bool = False
     ) -> None:
         if compile_time < 0 or rest_time < 0:
             raise ValueError("compile_time and rest_time must be positive")
@@ -70,6 +72,7 @@ class ProgrammerSimulation:
         self.database = th.Semaphore(db_connections)
         self.compiler = th.Semaphore(compilers)
         self.acquire_db_first = acquire_db_first
+        self.random_sleep = random_sleep
         self.threads: List[th.Thread] = []
 
         self.events: List[Event] = []
@@ -83,9 +86,9 @@ class ProgrammerSimulation:
             self.events.append(Event(ts, programmer_id, action))
 
         if action == Action.COMPILE:
-            duration = self.compile_time
+            duration = random.uniform(0.01, self.compile_time) if self.random_sleep else self.compile_time
         elif action == Action.REST:
-            duration = self.rest_time
+            duration = random.uniform(0.01, self.rest_time) if self.random_sleep else self.rest_time
         else:
             duration = 0
         time.sleep(duration)
@@ -179,7 +182,8 @@ def run_experiment(
     db_connections: int,
     compilers: int,
     duration: float,
-    acquire_db_first: bool = True
+    acquire_db_first: bool = True,
+    random_sleep: bool = False
 ) -> Result:
     sim = ProgrammerSimulation(
         compile_time=compile_time,
@@ -187,11 +191,12 @@ def run_experiment(
         num_programmers=num_programmers,
         db_connections=db_connections,
         compilers=compilers,
-        acquire_db_first=acquire_db_first
+        acquire_db_first=acquire_db_first,
+        random_sleep=random_sleep
     )
     return sim.run_for(duration)
 
 if __name__ == "__main__":
-    result = run_experiment(0.1, 0.01, 5, 2, 1, duration=30)
+    result = run_experiment(0.1, 0.01, 5, 2, 1, duration=30, random_sleep=True)
     logger.info(f"CPU Utilization: {result.cpu_util:.2f}%")
     logger.info(f"Compilations per programmer: {result.counts}")
